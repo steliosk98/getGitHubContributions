@@ -23,7 +23,7 @@ jobs:
 
       - name: Generate SVG
         env:
-          TARGET_USERNAME: skiliaris
+          TARGET_USERNAME: ${{ vars.TARGET_USERNAME }}
           GITHUB_TOKEN: ${{ github.token }}
         run: npm run build
 
