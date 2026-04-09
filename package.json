@@ -1,0 +1,9 @@
+{
+  "name": "github-contribution-chart",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/generate-contributions.js"
+  }
+}
