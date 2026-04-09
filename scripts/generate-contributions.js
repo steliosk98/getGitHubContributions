@@ -52,6 +52,7 @@ if (!response.ok) {
 }
 
 const payload = await response.json();
+
 if (payload.errors) {
   throw new Error(JSON.stringify(payload.errors, null, 2));
 }
@@ -77,14 +78,6 @@ const GRID_HEIGHT = 7 * STEP;
 const WIDTH = LEFT_PAD + GRID_WIDTH + 12;
 const HEIGHT = TOP_PAD + GRID_HEIGHT + 20;
 
-const colors = {
-  NONE: "#ebedf0",
-  FIRST_QUARTILE: "#9be9a8",
-  SECOND_QUARTILE: "#40c463",
-  THIRD_QUARTILE: "#30a14e",
-  FOURTH_QUARTILE: "#216e39"
-};
-
 function esc(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -107,45 +100,72 @@ const weekdayLabels = [
   { label: "Fri", row: 5 }
 ];
 
-let svg = `
+function buildSvg(theme) {
+  const palettes = {
+    light: {
+      bg: "#ffffff",
+      text: "#57606a",
+      title: "#24292f",
+      NONE: "#ebedf0",
+      FIRST_QUARTILE: "#9be9a8",
+      SECOND_QUARTILE: "#40c463",
+      THIRD_QUARTILE: "#30a14e",
+      FOURTH_QUARTILE: "#216e39"
+    },
+    dark: {
+      bg: "#0d1117",
+      text: "#8b949e",
+      title: "#c9d1d9",
+      NONE: "#161b22",
+      FIRST_QUARTILE: "#0e4429",
+      SECOND_QUARTILE: "#006d32",
+      THIRD_QUARTILE: "#26a641",
+      FOURTH_QUARTILE: "#39d353"
+    }
+  };
+
+  const colors = palettes[theme];
+
+  let svg = `
 <svg xmlns="http://www.w3.org/2000/svg"
      width="${WIDTH}"
      height="${HEIGHT}"
      viewBox="0 0 ${WIDTH} ${HEIGHT}"
      role="img"
      aria-label="${esc(`${USERNAME} made ${total} contributions in the last year`)}">
+  <rect width="100%" height="100%" fill="${colors.bg}" />
   <style>
     text {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
       font-size: 9px;
-      fill: #57606a;
+      fill: ${colors.text};
     }
     .count {
       font-size: 12px;
-      fill: #24292f;
+      fill: ${colors.title};
     }
   </style>
 
   <text x="${LEFT_PAD}" y="12" class="count">${esc(`${total} contributions in the last year`)}</text>
 `;
 
-for (const month of monthLabels) {
-  const x = LEFT_PAD + month.weekIndex * STEP;
-  svg += `<text x="${x}" y="${TOP_PAD - 6}">${esc(month.name.slice(0, 3))}</text>`;
-}
+  for (const month of monthLabels) {
+    const x = LEFT_PAD + month.weekIndex * STEP;
+    svg += `<text x="${x}" y="${TOP_PAD - 6}">${esc(month.name.slice(0, 3))}</text>`;
+  }
 
-for (const item of weekdayLabels) {
-  const y = TOP_PAD + item.row * STEP + 8;
-  svg += `<text x="0" y="${y}">${esc(item.label)}</text>`;
-}
+  for (const item of weekdayLabels) {
+    const y = TOP_PAD + item.row * STEP + 8;
+    svg += `<text x="0" y="${y}">${esc(item.label)}</text>`;
+  }
 
-weeks.forEach((week, col) => {
-  week.contributionDays.forEach((day, row) => {
-    const x = LEFT_PAD + col * STEP;
-    const y = TOP_PAD + row * STEP;
-    const fill = colors[day.contributionLevel] || colors.NONE;
+  weeks.forEach((week, col) => {
+    week.contributionDays.forEach((day, row) => {
+      const x = LEFT_PAD + col * STEP;
+      const y = TOP_PAD + row * STEP;
+      const fill = colors[day.contributionLevel] || colors.NONE;
 
-    svg += `
+      svg += `
       <rect
         x="${x}"
         y="${y}"
@@ -156,14 +176,30 @@ weeks.forEach((week, col) => {
         fill="${fill}">
         <title>${esc(`${day.contributionCount} contributions on ${day.date}`)}</title>
       </rect>
-    `;
+      `;
+    });
   });
-});
 
-svg += `</svg>`;
+  svg += `
+</svg>
+`;
+
+  return svg;
+}
 
 await fs.mkdir("docs/assets", { recursive: true });
-await fs.writeFile("docs/assets/contributions.svg", svg, "utf8");
+
+await fs.writeFile(
+  "docs/assets/contributions-light.svg",
+  buildSvg("light"),
+  "utf8"
+);
+
+await fs.writeFile(
+  "docs/assets/contributions-dark.svg",
+  buildSvg("dark"),
+  "utf8"
+);
 
 const html = `<!doctype html>
 <html lang="en">
@@ -171,12 +207,38 @@ const html = `<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${USERNAME} contributions</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 32px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+    }
+    img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+    .light { display: none; }
+    @media (prefers-color-scheme: light) {
+      body { background: #ffffff; color: #24292f; }
+      .light { display: block; }
+      .dark { display: none; }
+    }
+    @media (prefers-color-scheme: dark) {
+      .light { display: none; }
+      .dark { display: block; }
+    }
+  </style>
 </head>
 <body>
-  <img src="./assets/contributions.svg" alt="${USERNAME} contribution chart">
+  <img class="light" src="./assets/contributions-light.svg" alt="${USERNAME} contribution chart light">
+  <img class="dark" src="./assets/contributions-dark.svg" alt="${USERNAME} contribution chart dark">
 </body>
 </html>`;
 
 await fs.writeFile("docs/index.html", html, "utf8");
 
-console.log("Generated docs/assets/contributions.svg");
+console.log("Generated docs/assets/contributions-light.svg");
+console.log("Generated docs/assets/contributions-dark.svg");
